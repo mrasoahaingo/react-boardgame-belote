@@ -3,24 +3,19 @@ import { BoardProps } from 'boardgame.io/react';
 import { BeloteState } from './Game';
 import { Ctx } from 'boardgame.io';
 
-const getWinner = (ctx: Ctx): string | null => {
-  if (!ctx.gameover) return null;
-  if (ctx.gameover.draw) return 'Draw';
-  return `Player ${ctx.gameover.winner} wins!`;
-};
-
 interface BeloteProps extends BoardProps<BeloteState> {}
 
 export const Board = ({ G, ctx, moves, playerID, isActive }: BeloteProps) => {
-  const winner = getWinner(ctx);
-  const { dealer, cutter } = G;
+  const { dealer, cutter, scores } = G;
   const { phase } = ctx;
   const cutting = phase === 'cut';
   const dealing = phase === 'firstDeal' || phase === 'lastDeal';
   const talking = phase === 'talk';
+  const ending = phase === 'score';
 
   return (
-    <main>
+    <main style={{ padding: 10, border: '1px solid grey', margin : 10 }}> 
+      <div>scores: {scores.teamA} : {scores.teamB}</div>
       <h1 style={{ color: isActive ? 'blue' : 'grey' }}>
         {playerID && playerID === dealer && '(D)'} Payer {playerID}{' '}
         {isActive && (
@@ -65,7 +60,13 @@ export const Board = ({ G, ctx, moves, playerID, isActive }: BeloteProps) => {
         ))}
       </div>
 
-      {winner && <p>{winner}</p>}
+      {ending && (
+        <div>
+          {ending && dealer && (
+            <button onClick={() => moves.nextParty()}>next party</button>
+          )}
+        </div>
+      )}
     </main>
   );
 };

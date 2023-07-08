@@ -1,6 +1,6 @@
 import { Game, Ctx } from 'boardgame.io';
 import _shuffle from 'lodash.shuffle';
-import { CARDS, CardStatus, Deck, DeckStatus, Hand, Table } from './constants';
+import { CARDS, Deck, DeckStatus, Hand, Scores, Table } from './constants';
 
 function IsFinished(): boolean {
   return false;
@@ -10,12 +10,10 @@ export interface BeloteState {
   contract: string | null;
   deck: Deck;
   deckStatus: DeckStatus;
-  scores: {
-    teamA: number;
-    teamB: number;
-  };
+  scores: Scores;
   table: Table;
   hand: Hand;
+  hands: Record<string, Hand> | null;
   turnWinner: string | null;
   dealer: string;
   cutter: string;
@@ -26,8 +24,9 @@ const shuffleCards = (deck: Deck): Deck => {
 };
 
 const dealCards = (G: BeloteState, ctx: Ctx, deals: number[]) => {
-  const { deck } = G;
-
+  const { deck: _deck, hands: _hands } = G;
+  
+  const deck = [..._deck];
   const orders = [...ctx.playOrder, ...ctx.playOrder];
   const first = parseInt(ctx.currentPlayer, 10) + 1;
   const dealOrder = orders.slice(first, first + 4);
@@ -37,37 +36,36 @@ const dealCards = (G: BeloteState, ctx: Ctx, deals: number[]) => {
       dealOrder.map((playerId) => playerId.repeat(nbCards).split('')).flat()
     )
     .flat();
+  
+  const hands = sequence.reduce((hands: any, id) => {
+    const playerId = `p${id}`;
+    const card = {
+      ...deck.shift(),
+      owner: id,
+    }
+    return {
+      ...hands,
+      [playerId]: hands[playerId] ? [...hands[playerId], card] : [card]
+    };
+  }, _hands || {});
 
-  const cards = deck.map((card, i) => ({
-    ...card,
-    owner: sequence[i],
-    status: CardStatus.HAND,
-  }));
-
-  return cards;
+  return {
+    hands,
+    deck,
+  };
 };
 
-const evaluateTable = (deck: Deck) => {
-  const tableCards = deck.filter((card) => card.status === CardStatus.TABLE);
-
-  if (tableCards.length === 4) {
-    const cardsToClear = tableCards.map((card) => card.num);
-    const clearedDeck = deck.map((card) => ({
-      ...card,
-      status: cardsToClear.includes(card.num) ? CardStatus.DECK : card.status,
-    }));
-    return {
-      deck: clearedDeck,
-      turnWinner: '1',
-      scores: {
-        teamA: 10,
-        teamB: 2,
-      },
-    };
+const evaluateTable = (table: Table, scores: Scores): { turnWinner?: string, newScores?: Scores } => {
+  if (table.length < 4) {
+    return {};
   }
 
   return {
-    deck,
+    turnWinner: '1',
+    newScores: {
+      teamA: scores.teamA + 10,
+      teamB: scores.teamA + 1,
+    },
   };
 };
 
@@ -79,23 +77,18 @@ export const Belote: Game<BeloteState> = {
     scores: { teamA: 0, teamB: 0 },
     table: [],
     hand: [],
+    hands: null,
     turnWinner: '3',
     dealer: '2',
     cutter: '1',
   }),
 
-  playerView: (G, ctx, playerID) => {
-    const { deck } = G;
-    const hand = playerID
-      ? deck.filter(
-          (card) => card.owner === playerID && card.status === CardStatus.HAND
-        ) || []
-      : [];
-    const table = deck.filter((card) => card.status === CardStatus.TABLE);
+  playerView: (G, ctx, id) => {
+    const { hands, ...state } = G;
+    const playerId = `p${id}`;
     return {
-      ...G,
-      hand,
-      table,
+      ...state,
+      hand: (hands && hands[playerId]) || []
     };
   },
 
@@ -111,9 +104,16 @@ export const Belote: Game<BeloteState> = {
         },
       },
       moves: {
-        cutDeck: (G, ctx, card) => {
+        cutDeck: (G) => {
+          const { deck } = G;
+          const left = deck.slice(0, 16);
+          const right = deck.slice(16, 32);
+
+          const newDeck = [...right, ...left];
+
           return {
             ...G,
+            deck: newDeck,
             deckStatus: DeckStatus.CUTTED,
           };
         },
@@ -136,7 +136,7 @@ export const Belote: Game<BeloteState> = {
         dealCards: (G, ctx) => {
           return {
             ...G,
-            deck: dealCards(G, ctx, [3, 2]),
+            ...dealCards(G, ctx, [3, 2]),
             deckStatus: DeckStatus.DEALED,
           };
         },
@@ -180,7 +180,7 @@ export const Belote: Game<BeloteState> = {
         dealCards: (G, ctx) => {
           return {
             ...G,
-            deck: dealCards(G, ctx, [3, 2, 3]),
+            ...dealCards(G, ctx, [3]),
             deckStatus: DeckStatus.DEALED,
           };
         },
@@ -200,45 +200,79 @@ export const Belote: Game<BeloteState> = {
         },
       },
       moves: {
-        playCard: (G, ctx, playedCard) => {
-          const newDeck = G.deck.map((card) => ({
-            ...card,
-            status:
-              card.num === playedCard.num ? CardStatus.TABLE : card.status,
-          }));
+        playCard: (G, ctx, playerCard) => {
+          const { hands: _hands, deck: _deck, table: _table, scores } = G;
+          const { currentPlayer } = ctx;
+          
+          // Remove card from player hand
+          const playerId = `p${currentPlayer}`;
+          const playerHand = _hands ? _hands[playerId].filter(card => card.num !== playerCard.num) : [];
+          const hands = {
+            ..._hands,
+            [playerId]: _hands && _hands[playerId] ? playerHand : [],
+          }
 
-          const { turnWinner, scores, deck } = evaluateTable(newDeck);
+          // Add card to table
+          const table = [..._table, playerCard];
 
-          if (endParty) {
-            ctx.events?.setPhase('score');
+          // Evaluate the table if winner and calculate new score
+          const { turnWinner, newScores } = evaluateTable(table, scores);
 
+          // 1. Next player
+          if (!turnWinner) {
             return {
-              turnWinner: '3',
-              dealer: '2',
-              cutter: '1',
+              ...G,
+              table,
+              hands,
             };
           }
 
-          if (turnWinner) {
-            ctx.events?.setPhase('play');
+          const playerRoles = {
+            turnWinner: '1',
+            dealer: '3',
+            cutter: '2',
           }
 
+          const deck = [..._deck, ...table];
+
+          // 2. Next turn
+          if (deck.length < 32) {
+            ctx.events?.setPhase('play');
+
+            return {
+              ...G,
+              table: [],
+              deck,
+              hands,
+              ...playerRoles,
+            }
+          }
+
+          // End of party
           return {
-            ...G,
+            table: [],
+            hand: [],
+            hands: null,
             deck,
-            turnWinner: turnWinner ? turnWinner : G.turnWinner,
-            scores: scores ? scores : G.scores,
+            scores: newScores,
+            ...playerRoles,
           };
         },
       },
+      endIf: (G) => G.deck.length === 32,
+      next: 'score',
     },
     /**
      * SCORE: display score
      */
     score: {
       moves: {
-        nextParty: () => {},
-        newGame: () => {},
+        nextParty: (G, ctx) => {
+          ctx.events?.setPhase('cut')
+        },
+        newGame: (G, ctx) => {
+          ctx.events?.setPhase('cut')
+        },
       },
     },
   },
