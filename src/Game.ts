@@ -1,6 +1,16 @@
 import { Game, Ctx } from 'boardgame.io';
 import _shuffle from 'lodash.shuffle';
-import { Appeals, APPEAL_ORDER, CARDS, Contract, Deck, Hand, Scores, Table } from './constants';
+import {
+  Appeals,
+  APPEAL_ORDER,
+  CARDS,
+  Contract,
+  Deck,
+  Hand,
+  Hands,
+  Scores,
+  Table,
+} from './constants';
 
 function IsFinished(): boolean {
   return false;
@@ -12,7 +22,7 @@ export interface BeloteState {
   scores: Scores;
   table: Table;
   hand: Hand;
-  hands: Record<string, Hand> | null;
+  hands: Hands;
   firstPlayer: string;
   dealer: string;
   cutter: string;
@@ -29,8 +39,8 @@ const getPlayerRoles = (ctx: Ctx, firstPlayer: string = '0') => {
     firstPlayer,
     dealer,
     cutter,
-  }
-}
+  };
+};
 
 const shuffleCards = (deck: Deck): Deck => {
   return _shuffle(deck);
@@ -38,9 +48,9 @@ const shuffleCards = (deck: Deck): Deck => {
 
 const dealCards = (G: BeloteState, ctx: Ctx, deals: number[]) => {
   const { deck: _deck, hands: _hands, firstPlayer } = G;
-  
+
   const deck = [..._deck];
-  
+
   const orders = [...ctx.playOrder, ...ctx.playOrder];
   const first = parseInt(firstPlayer, 10);
   const dealOrder = orders.slice(first, first + 4);
@@ -50,16 +60,16 @@ const dealCards = (G: BeloteState, ctx: Ctx, deals: number[]) => {
       dealOrder.map((playerId) => playerId.repeat(nbCards).split('')).flat()
     )
     .flat();
-  
+
   const hands = sequence.reduce((hands: any, id) => {
     const playerId = `p${id}`;
     const card = {
       ...deck.shift(),
       owner: id,
-    }
+    };
     return {
       ...hands,
-      [playerId]: hands[playerId] ? [...hands[playerId], card] : [card]
+      [playerId]: hands[playerId] ? [...hands[playerId], card] : [card],
     };
   }, _hands || {});
 
@@ -89,7 +99,7 @@ export const Belote: Game<BeloteState> = {
     hands: null,
     lastAppeal: null,
     appeals: APPEAL_ORDER,
-    ...getPlayerRoles(ctx)
+    ...getPlayerRoles(ctx),
   }),
 
   playerView: (G, ctx, id) => {
@@ -97,7 +107,7 @@ export const Belote: Game<BeloteState> = {
     const playerId = `p${id}`;
     return {
       ...state,
-      hand: (hands && hands[playerId]) || []
+      hand: (hands && hands[playerId]) || [],
     };
   },
 
@@ -169,7 +179,10 @@ export const Belote: Game<BeloteState> = {
                 const { appeals } = G;
 
                 const appealLevel = appeals.indexOf(appeal);
-                const restAppeals = appeals.slice(appealLevel + 1, appeals.length);
+                const restAppeals = appeals.slice(
+                  appealLevel + 1,
+                  appeals.length
+                );
 
                 return {
                   ...G,
@@ -181,40 +194,40 @@ export const Belote: Game<BeloteState> = {
                 };
               },
               pass: (G) => {
-                const { lastAppeal } = G
-      
-                if(lastAppeal && lastAppeal.appeal === Appeals.CLUBS) {
+                const { lastAppeal } = G;
+
+                if (lastAppeal && lastAppeal.appeal === Appeals.CLUBS) {
                   return {
                     ...G,
                     contract: lastAppeal,
-                  }
+                  };
                 }
-      
-                if(lastAppeal && lastAppeal.appeal === Appeals.SANSA) {
+
+                if (lastAppeal && lastAppeal.appeal === Appeals.SANSA) {
                   return {
                     ...G,
                     contract: lastAppeal,
-                  }
+                  };
                 }
               },
-            }
+            },
           },
           double: {
             moves: {
               double: (G, ctx) => {
-                const { lastAppeal } = G
-      
+                const { lastAppeal } = G;
+
                 return {
                   ...G,
                   contract: {
                     ...lastAppeal,
                     doubled: true,
-                  }
-                }
-              }
-            }
-          }
-        }
+                  },
+                };
+              },
+            },
+          },
+        },
       },
       endIf: (G) => Boolean(G.contract),
       next: 'lastDeal',
@@ -253,16 +266,27 @@ export const Belote: Game<BeloteState> = {
       },
       moves: {
         playCard: (G, ctx, playerCard) => {
-          const { hands: _hands, deck: _deck, table: _table, scores, contract } = G;
+          const {
+            hands: _hands,
+            deck: _deck,
+            table: _table,
+            scores,
+            contract,
+          } = G;
           const { currentPlayer } = ctx;
-          
+
           // Remove card from player hand
           const playerId = `p${currentPlayer}`;
-          const playerHand = _hands ? _hands[playerId].filter(card => card.num+card.color !== playerCard.num+playerCard.color) : [];
+          const playerHand = _hands
+            ? _hands[playerId].filter(
+                (card) =>
+                  card.num + card.color !== playerCard.num + playerCard.color
+              )
+            : [];
           const hands = {
             ..._hands,
             [playerId]: _hands && _hands[playerId] ? playerHand : [],
-          }
+          };
 
           // Add card to table
           const table = [..._table, playerCard];
@@ -277,7 +301,11 @@ export const Belote: Game<BeloteState> = {
           }
 
           // Evaluate the table if winner and calculate new score
-          const { firstPlayer, newScores } = evaluateTable(contract, table, scores);
+          const { firstPlayer, newScores } = evaluateTable(
+            contract,
+            table,
+            scores
+          );
 
           const playerRoles = getPlayerRoles(ctx, firstPlayer);
 
@@ -293,7 +321,7 @@ export const Belote: Game<BeloteState> = {
               deck,
               hands,
               ...playerRoles,
-            }
+            };
           }
 
           // End of party
@@ -316,10 +344,10 @@ export const Belote: Game<BeloteState> = {
     score: {
       moves: {
         nextParty: (G, ctx) => {
-          ctx.events?.setPhase('cut')
+          ctx.events?.setPhase('cut');
         },
         newGame: (G, ctx) => {
-          ctx.events?.setPhase('cut')
+          ctx.events?.setPhase('cut');
         },
       },
     },

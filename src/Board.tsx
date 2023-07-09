@@ -9,31 +9,28 @@ const Appeals = ({ G, ctx, moves, playerID }: BeloteProps) => {
   const { activePlayers } = ctx;
 
   const hasSomeoneAppealed = Boolean(lastAppeal);
-  const playerPhase = activePlayers && playerID ? activePlayers[playerID] : null;
+  const playerPhase =
+    activePlayers && playerID ? activePlayers[playerID] : null;
   const isPlayerPhaseAppeals = playerPhase === 'appeals';
   const isPlayerPhaseCanDouble = playerPhase === 'double';
-  
+
   return (
     <>
       {isPlayerPhaseAppeals && (
         <>
-          {appeals.map(appeal => (
+          {appeals.map((appeal) => (
             <button key={appeal} onClick={() => moves.appeal(appeal)}>
               {appeal}
             </button>
           ))}
           {hasSomeoneAppealed && (
-            <button onClick={() => moves.pass()}>
-              BONNE
-            </button>
+            <button onClick={() => moves.pass()}>BONNE</button>
           )}
         </>
       )}
       {hasSomeoneAppealed && isPlayerPhaseCanDouble && (
         <>
-          <button onClick={() => moves.double()}>
-            CONTRE
-          </button>
+          <button onClick={() => moves.double()}>CONTRE</button>
         </>
       )}
     </>
@@ -54,8 +51,10 @@ export const Board = (boardProps: BeloteProps) => {
   const isCutter = cutter === playerID;
 
   return (
-    <main style={{ padding: 10, border: '1px solid grey', margin : 10 }}> 
-      <div>scores: {scores.teamA} : {scores.teamB}</div>
+    <main style={{ padding: 10, border: '1px solid grey', margin: 10 }}>
+      <div>
+        scores: {scores.teamA} : {scores.teamB}
+      </div>
       <h1 style={{ color: isActive ? 'blue' : 'grey' }}>
         {isDealer && '(D)'} Payer {playerID}{' '}
         <span>
@@ -73,11 +72,12 @@ export const Board = (boardProps: BeloteProps) => {
         Hand:
         {G.hand.map((card) => (
           <button
-            key={card.num+card.color}
+            key={card.num + card.color}
             style={{ padding: 10, border: '1px solid grey' }}
             onClick={() => moves.playCard(card)}
           >
-            {card.num}{card.color}
+            {card.num}
+            {card.color}
           </button>
         ))}
       </div>
@@ -86,10 +86,11 @@ export const Board = (boardProps: BeloteProps) => {
         Table:
         {G.table.map((card) => (
           <span
-            key={card.num+card.color}
+            key={card.num + card.color}
             style={{ padding: 10, border: '1px solid grey' }}
           >
-            {card.num}{card.color}
+            {card.num}
+            {card.color}
           </span>
         ))}
       </div>
