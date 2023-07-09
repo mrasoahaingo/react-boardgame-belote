@@ -1,6 +1,7 @@
+import { ActivePlayers } from 'boardgame.io/core';
 import { Game, Ctx } from 'boardgame.io';
 import _shuffle from 'lodash.shuffle';
-import { CARDS, Deck, DeckStatus, Hand, Scores, Table } from './constants';
+import { Appeals, APPEAL_ORDER, CARDS, Deck, Hand, Scores, Table } from './constants';
 
 function IsFinished(): boolean {
   return false;
@@ -9,7 +10,6 @@ function IsFinished(): boolean {
 export interface BeloteState {
   contract: string | null;
   deck: Deck;
-  deckStatus: DeckStatus;
   scores: Scores;
   table: Table;
   hand: Hand;
@@ -17,6 +17,12 @@ export interface BeloteState {
   turnWinner: string | null;
   dealer: string;
   cutter: string;
+  lastAppeal: {
+    playerId: string | null,
+    appeal: Appeals | null,
+    doubled: boolean,
+  };
+  appeals: Appeals[];
 }
 
 const shuffleCards = (deck: Deck): Deck => {
@@ -73,7 +79,6 @@ export const Belote: Game<BeloteState> = {
   setup: () => ({
     contract: null,
     deck: shuffleCards(CARDS),
-    deckStatus: DeckStatus.SHUFFLED,
     scores: { teamA: 0, teamB: 0 },
     table: [],
     hand: [],
@@ -81,6 +86,12 @@ export const Belote: Game<BeloteState> = {
     turnWinner: '3',
     dealer: '2',
     cutter: '1',
+    lastAppeal: {
+      playerId: null,
+      appeal: null,
+      doubled: false,
+    },
+    appeals: APPEAL_ORDER,
   }),
 
   playerView: (G, ctx, id) => {
@@ -104,21 +115,21 @@ export const Belote: Game<BeloteState> = {
         },
       },
       moves: {
-        cutDeck: (G) => {
+        cutDeck: (G, ctx) => {
           const { deck } = G;
           const left = deck.slice(0, 16);
           const right = deck.slice(16, 32);
 
           const newDeck = [...right, ...left];
 
+          ctx.events?.setPhase('firstDeal');
+
           return {
             ...G,
             deck: newDeck,
-            deckStatus: DeckStatus.CUTTED,
           };
         },
       },
-      endIf: (G) => G.deckStatus === DeckStatus.CUTTED,
       next: 'firstDeal',
       start: true,
     },
@@ -137,31 +148,69 @@ export const Belote: Game<BeloteState> = {
           return {
             ...G,
             ...dealCards(G, ctx, [3, 2]),
-            deckStatus: DeckStatus.DEALED,
           };
         },
       },
-      endIf: (G) => G.deckStatus === DeckStatus.DEALED,
-      next: 'talk',
+      endIf: (G) => G.deck.length === 12,
+      next: 'appeals',
     },
     /**
      * TALK: le gagnant fait la première annonce du jeu
      */
-    talk: {
+    appeals: {
       turn: {
         maxMoves: 1,
-      },
-      moves: {
-        talk: (G, ctx, bid) => {
-          if (bid === 'bonne') {
-            return {
-              ...G,
-              contract: 'TOUTA',
-              deckStatus: DeckStatus.CONTRACT,
-            };
-          }
-          return G;
+        activePlayers: {
+          currentPlayer: 'appeals',
+          others: 'contre',
         },
+        stages: {
+          appeals: {
+            moves: {
+              appeal: (G, ctx, appeal) => {
+                return {
+                  ...G,
+                  lastAppeal: {
+                    playerId: ctx.currentPlayer,
+                    appeal,
+                  },
+                };
+              },
+              pass: (G, ctx) => {
+                const { lastAppeal } = G
+      
+                if(lastAppeal && lastAppeal.appeal === Appeals.CLUBS) {
+                  return {
+                    ...G,
+                    contract: lastAppeal,
+                  }
+                }
+      
+                if(lastAppeal && lastAppeal.appeal === Appeals.SANSA) {
+                  return {
+                    ...G,
+                    contract: lastAppeal,
+                  }
+                }
+              },
+            }
+          },
+          contre: {
+            moves: {
+              contre: (G, ctx) => {
+                const { lastAppeal } = G
+      
+                return {
+                  ...G,
+                  contract: {
+                    ...lastAppeal,
+                    doubled: true,
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       endIf: (G) => Boolean(G.contract),
       next: 'lastDeal',
@@ -181,11 +230,10 @@ export const Belote: Game<BeloteState> = {
           return {
             ...G,
             ...dealCards(G, ctx, [3]),
-            deckStatus: DeckStatus.DEALED,
           };
         },
       },
-      endIf: (G) => G.deckStatus === DeckStatus.DEALED,
+      endIf: (G) => G.deck.length === 0,
       next: 'play',
     },
     /**
@@ -206,7 +254,7 @@ export const Belote: Game<BeloteState> = {
           
           // Remove card from player hand
           const playerId = `p${currentPlayer}`;
-          const playerHand = _hands ? _hands[playerId].filter(card => card.num !== playerCard.num) : [];
+          const playerHand = _hands ? _hands[playerId].filter(card => card.num+card.color !== playerCard.num+playerCard.color) : [];
           const hands = {
             ..._hands,
             [playerId]: _hands && _hands[playerId] ? playerHand : [],
