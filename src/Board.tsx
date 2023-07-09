@@ -45,6 +45,7 @@ export const Board = (boardProps: BeloteProps) => {
   const isCutPhase = phase === 'cut';
   const isDealPhase = phase === 'firstDeal' || phase === 'lastDeal';
   const isAppealPhase = phase === 'appeals';
+  const isPlayPhase = phase === 'play';
   const displayScore = phase === 'score';
 
   const isDealer = dealer === playerID;
@@ -56,7 +57,7 @@ export const Board = (boardProps: BeloteProps) => {
         scores: {scores.teamA} : {scores.teamB}
       </div>
       <h1 style={{ color: isActive ? 'blue' : 'grey' }}>
-        {isDealer && '(D)'} Payer {playerID}{' '}
+        {isDealer && '(D)'} Player {playerID}{' '}
         <span>
           {isActive && isDealPhase && isDealer && (
             <button onClick={() => moves.dealCards()}>deal</button>
@@ -70,16 +71,19 @@ export const Board = (boardProps: BeloteProps) => {
       <em>Phase: {ctx.phase}</em>
       <div>
         Hand:
-        {G.hand.map((card) => (
-          <button
-            key={card.num + card.color}
-            style={{ padding: 10, border: '1px solid grey' }}
-            onClick={() => moves.playCard(card)}
-          >
-            {card.num}
-            {card.color}
-          </button>
-        ))}
+        {G.hand.map((card) => {
+          return (
+            <button
+              key={card.num + card.color}
+              style={{ padding: 10, border: '1px solid grey' }}
+              onClick={() => moves.playCard(card)}
+              disabled={!card.isAllowed}
+            >
+              {card.num}
+              {card.color}
+            </button>
+          );
+        })}
       </div>
 
       <div>

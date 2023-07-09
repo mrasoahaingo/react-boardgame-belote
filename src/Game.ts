@@ -2,7 +2,9 @@ import { Game, Ctx } from 'boardgame.io';
 import _shuffle from 'lodash.shuffle';
 import {
   Appeals,
+  APPEAL_COLORS,
   APPEAL_ORDER,
+  Card,
   CARDS,
   Contract,
   Deck,
@@ -89,6 +91,30 @@ const evaluateTable = (contract: Contract, table: Table, scores: Scores) => {
   };
 };
 
+const canPlayAnyCard = (firstCard: Card, hand: Hand): boolean => {
+  /**
+   * Peut jouer n'importe quel première carte
+   */
+  if (!firstCard) return true;
+
+  const hasSameColor = hand.some(card => card.color === firstCard.color);
+
+  /**
+   * Peut jouer n'importe quel autre carte si n'a pas la même couleur
+   */
+  if(!hasSameColor) return true;
+
+  return false;
+}
+
+const canPlayCard = (contract: Contract, firstCard: Card, card: Card): boolean => {
+  if (!contract) return false;
+
+  if (firstCard.color === card.color) return true;
+
+  return false;
+}
+
 export const Belote: Game<BeloteState> = {
   setup: (ctx) => ({
     contract: null,
@@ -104,10 +130,31 @@ export const Belote: Game<BeloteState> = {
 
   playerView: (G, ctx, id) => {
     const { hands, ...state } = G;
+    const { contract, table } = state;
+    const { currentPlayer, phase } = ctx;
+
+    const isActive = currentPlayer === id;
+    const isPlayPhase = phase === 'play';
+    
     const playerId = `p${id}`;
+    const hand = (hands && hands[playerId]) || [];
+
+    const [firstCard] = table;
+    const canPlay =  canPlayAnyCard(firstCard, hand);
+
+    const handWithRules = hand.map(card => {
+      const isCardAllowed = canPlay || canPlayCard(contract, firstCard, card);
+      const isAllowed = isPlayPhase && isActive && isCardAllowed;
+
+      return {
+        ...card,
+        isAllowed,
+      };
+    });
+
     return {
       ...state,
-      hand: (hands && hands[playerId]) || [],
+      hand: handWithRules,
     };
   },
 
