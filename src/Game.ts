@@ -1,28 +1,35 @@
-import { ActivePlayers } from 'boardgame.io/core';
 import { Game, Ctx } from 'boardgame.io';
 import _shuffle from 'lodash.shuffle';
-import { Appeals, APPEAL_ORDER, CARDS, Deck, Hand, Scores, Table } from './constants';
+import { Appeals, APPEAL_ORDER, CARDS, Contract, Deck, Hand, Scores, Table } from './constants';
 
 function IsFinished(): boolean {
   return false;
 }
 
 export interface BeloteState {
-  contract: string | null;
+  contract: Contract;
   deck: Deck;
   scores: Scores;
   table: Table;
   hand: Hand;
   hands: Record<string, Hand> | null;
-  turnWinner: string | null;
+  firstPlayer: string;
   dealer: string;
   cutter: string;
-  lastAppeal: {
-    playerId: string | null,
-    appeal: Appeals | null,
-    doubled: boolean,
-  };
+  lastAppeal: Contract;
   appeals: Appeals[];
+}
+
+const getPlayerRoles = (ctx: Ctx, firstPlayer: string = '0') => {
+  const orders = [...ctx.playOrder, ...ctx.playOrder];
+  const first = parseInt(firstPlayer, 10) + ctx.playOrder.length;
+  const [cutter, dealer] = orders.slice(first - 2, first);
+
+  return {
+    firstPlayer,
+    dealer,
+    cutter,
+  }
 }
 
 const shuffleCards = (deck: Deck): Deck => {
@@ -30,11 +37,12 @@ const shuffleCards = (deck: Deck): Deck => {
 };
 
 const dealCards = (G: BeloteState, ctx: Ctx, deals: number[]) => {
-  const { deck: _deck, hands: _hands } = G;
+  const { deck: _deck, hands: _hands, firstPlayer } = G;
   
   const deck = [..._deck];
+  
   const orders = [...ctx.playOrder, ...ctx.playOrder];
-  const first = parseInt(ctx.currentPlayer, 10) + 1;
+  const first = parseInt(firstPlayer, 10);
   const dealOrder = orders.slice(first, first + 4);
 
   const sequence = deals
@@ -61,13 +69,9 @@ const dealCards = (G: BeloteState, ctx: Ctx, deals: number[]) => {
   };
 };
 
-const evaluateTable = (table: Table, scores: Scores): { turnWinner?: string, newScores?: Scores } => {
-  if (table.length < 4) {
-    return {};
-  }
-
+const evaluateTable = (contract: Contract, table: Table, scores: Scores) => {
   return {
-    turnWinner: '1',
+    firstPlayer: '1',
     newScores: {
       teamA: scores.teamA + 10,
       teamB: scores.teamA + 1,
@@ -76,22 +80,16 @@ const evaluateTable = (table: Table, scores: Scores): { turnWinner?: string, new
 };
 
 export const Belote: Game<BeloteState> = {
-  setup: () => ({
+  setup: (ctx) => ({
     contract: null,
     deck: shuffleCards(CARDS),
     scores: { teamA: 0, teamB: 0 },
     table: [],
     hand: [],
     hands: null,
-    turnWinner: '3',
-    dealer: '2',
-    cutter: '1',
-    lastAppeal: {
-      playerId: null,
-      appeal: null,
-      doubled: false,
-    },
+    lastAppeal: null,
     appeals: APPEAL_ORDER,
+    ...getPlayerRoles(ctx)
   }),
 
   playerView: (G, ctx, id) => {
@@ -168,15 +166,21 @@ export const Belote: Game<BeloteState> = {
           appeals: {
             moves: {
               appeal: (G, ctx, appeal) => {
+                const { appeals } = G;
+
+                const appealLevel = appeals.indexOf(appeal);
+                const restAppeals = appeals.slice(appealLevel + 1, appeals.length);
+
                 return {
                   ...G,
+                  appeals: restAppeals,
                   lastAppeal: {
                     playerId: ctx.currentPlayer,
                     appeal,
                   },
                 };
               },
-              pass: (G, ctx) => {
+              pass: (G) => {
                 const { lastAppeal } = G
       
                 if(lastAppeal && lastAppeal.appeal === Appeals.CLUBS) {
@@ -243,13 +247,13 @@ export const Belote: Game<BeloteState> = {
       turn: {
         maxMoves: 1,
         order: {
-          first: (G) => parseInt(G.turnWinner || '0', 10),
+          first: (G) => parseInt(G.firstPlayer, 10),
           next: (G, ctx) => (ctx.playOrderPos + 1) % ctx.numPlayers,
         },
       },
       moves: {
         playCard: (G, ctx, playerCard) => {
-          const { hands: _hands, deck: _deck, table: _table, scores } = G;
+          const { hands: _hands, deck: _deck, table: _table, scores, contract } = G;
           const { currentPlayer } = ctx;
           
           // Remove card from player hand
@@ -263,11 +267,8 @@ export const Belote: Game<BeloteState> = {
           // Add card to table
           const table = [..._table, playerCard];
 
-          // Evaluate the table if winner and calculate new score
-          const { turnWinner, newScores } = evaluateTable(table, scores);
-
           // 1. Next player
-          if (!turnWinner) {
+          if (table.length < 4) {
             return {
               ...G,
               table,
@@ -275,11 +276,10 @@ export const Belote: Game<BeloteState> = {
             };
           }
 
-          const playerRoles = {
-            turnWinner: '1',
-            dealer: '3',
-            cutter: '2',
-          }
+          // Evaluate the table if winner and calculate new score
+          const { firstPlayer, newScores } = evaluateTable(contract, table, scores);
+
+          const playerRoles = getPlayerRoles(ctx, firstPlayer);
 
           const deck = [..._deck, ...table];
 

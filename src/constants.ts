@@ -1,3 +1,9 @@
+export type Contract = {
+  playerId: string | null;
+  appeal: string | null;
+  doubled: boolean;
+} | null;
+
 export type Card = {
   num: string;
   color: string;
@@ -66,3 +72,6 @@ export const APPEAL_ORDER = [
   Appeals.SANSA,
   Appeals.TOUTA,
 ]
+
+export const TOUTA = ['7', '8', 'Q', 'K', '10', 'A', '9', 'J'];
+export const SANSA = ['7', '8', '9', 'J', 'Q', 'K', '10', 'A'];

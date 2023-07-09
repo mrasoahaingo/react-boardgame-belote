@@ -5,10 +5,10 @@ import { BeloteState } from './Game';
 interface BeloteProps extends BoardProps<BeloteState> {}
 
 const Appeals = ({ G, ctx, moves, playerID }: BeloteProps) => {
-  const { appeals, lastAppeal: { appeal } } = G;
+  const { appeals, lastAppeal } = G;
   const { activePlayers } = ctx;
 
-  const hasSomeoneAppealed = Boolean(appeal);
+  const hasSomeoneAppealed = Boolean(lastAppeal);
   const playerPhase = activePlayers && playerID ? activePlayers[playerID] : null;
   const isPlayerPhaseAppeals = playerPhase === 'appeals';
   const isPlayerPhaseCanDouble = playerPhase === 'double';
@@ -44,10 +44,12 @@ export const Board = (boardProps: BeloteProps) => {
   const { G, ctx, moves, playerID, isActive } = boardProps;
   const { dealer, cutter, scores } = G;
   const { phase } = ctx;
+
   const isCutPhase = phase === 'cut';
   const isDealPhase = phase === 'firstDeal' || phase === 'lastDeal';
   const isAppealPhase = phase === 'appeals';
   const displayScore = phase === 'score';
+
   const isDealer = dealer === playerID;
   const isCutter = cutter === playerID;
 
