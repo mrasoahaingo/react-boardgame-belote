@@ -162,7 +162,7 @@ export const Belote: Game<BeloteState> = {
         maxMoves: 1,
         activePlayers: {
           currentPlayer: 'appeals',
-          others: 'contre',
+          others: 'double',
         },
         stages: {
           appeals: {
@@ -195,9 +195,9 @@ export const Belote: Game<BeloteState> = {
               },
             }
           },
-          contre: {
+          double: {
             moves: {
-              contre: (G, ctx) => {
+              double: (G, ctx) => {
                 const { lastAppeal } = G
       
                 return {

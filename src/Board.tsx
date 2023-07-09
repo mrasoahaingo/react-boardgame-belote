@@ -8,10 +8,10 @@ const Appeals = ({ G, ctx, moves, playerID }: BeloteProps) => {
   const { appeals, lastAppeal: { appeal } } = G;
   const { activePlayers } = ctx;
 
-  const hasSomeoneAppealed = Boolean(appeals);
+  const hasSomeoneAppealed = Boolean(appeal);
   const playerPhase = activePlayers && playerID ? activePlayers[playerID] : null;
   const isPlayerPhaseAppeals = playerPhase === 'appeals';
-  const isPlayerPhaseContre = playerPhase === 'contre';
+  const isPlayerPhaseCanDouble = playerPhase === 'double';
   
   return (
     <>
@@ -22,16 +22,16 @@ const Appeals = ({ G, ctx, moves, playerID }: BeloteProps) => {
               {appeal}
             </button>
           ))}
-          {appeal && (
+          {hasSomeoneAppealed && (
             <button onClick={() => moves.pass()}>
               BONNE
             </button>
           )}
         </>
       )}
-      {hasSomeoneAppealed && isPlayerPhaseContre && (
+      {hasSomeoneAppealed && isPlayerPhaseCanDouble && (
         <>
-          <button onClick={() => moves.contre()}>
+          <button onClick={() => moves.double()}>
             CONTRE
           </button>
         </>
